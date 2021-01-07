@@ -6,6 +6,7 @@
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure, traits::Get, StorageMap,
 };
+
 use frame_system::ensure_signed;
 use sp_std::vec::Vec;
 
@@ -19,6 +20,7 @@ mod tests;
 pub trait Trait: frame_system::Trait {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+    type MaximumClaimLength: Get<usize>;
 }
 
 // The pallet's runtime storage items.
@@ -52,6 +54,7 @@ decl_error! {
         ProofAlreadyClaimed,
         ClaimNotExist,
         NotClaimOwner,
+        ClaimTooLong,
     }
 }
 
@@ -69,6 +72,8 @@ decl_module! {
         /// Allow a user to claim ownership of an unclaimed proof.
         #[weight = 10_000]
         fn create_claim(origin, proof: Vec<u8>) -> dispatch::DispatchResult {
+            ensure!(proof.len() <= T::MaximumClaimLength::get(), Error::<T>::ClaimTooLong);
+
             let sender = ensure_signed(origin)?;
 
             ensure!(!Proofs::<T>::contains_key(&proof), Error::<T>::ProofAlreadyClaimed);
