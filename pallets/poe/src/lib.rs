@@ -68,7 +68,7 @@ decl_module! {
 
         /// Allow a user to claim ownership of an unclaimed proof.
         #[weight = 10_000]
-        fn create_claim(origin, proof: Vec<u8>) {
+        fn create_claim(origin, proof: Vec<u8>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
 
             ensure!(!Proofs::<T>::contains_key(&proof), Error::<T>::ProofAlreadyClaimed);
@@ -76,10 +76,11 @@ decl_module! {
             Proofs::<T>::insert(&proof, (&sender, current_block));
             Self::deposit_event(RawEvent::ClaimCreated(sender, proof));
 
+            Ok(())
         }
 
         #[weight = 10_000]
-        fn revoke_claim(origin, proof: Vec<u8>) {
+        fn revoke_claim(origin, proof: Vec<u8>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
 
             ensure!(Proofs::<T>::contains_key(&proof), Error::<T>::NoSuchProof);
@@ -89,6 +90,8 @@ decl_module! {
             Proofs::<T>::remove(&proof);
 
             Self::deposit_event(RawEvent::ClaimRevoked(sender, proof));
+
+            Ok(())
         }
     }
 }
