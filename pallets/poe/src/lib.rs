@@ -50,8 +50,8 @@ decl_event!(
 decl_error! {
     pub enum Error for Module<T: Trait> {
         ProofAlreadyClaimed,
-        NoSuchProof,
-        NotProofOwner,
+        ClaimNotExist,
+        NotClaimOwner,
     }
 }
 
@@ -83,13 +83,27 @@ decl_module! {
         fn revoke_claim(origin, proof: Vec<u8>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
 
-            ensure!(Proofs::<T>::contains_key(&proof), Error::<T>::NoSuchProof);
+            ensure!(Proofs::<T>::contains_key(&proof), Error::<T>::ClaimNotExist);
             let (owner, _) = Proofs::<T>::get(&proof);
-            ensure!(sender == owner, Error::<T>::NotProofOwner);
+            ensure!(sender == owner, Error::<T>::NotClaimOwner);
 
             Proofs::<T>::remove(&proof);
 
             Self::deposit_event(RawEvent::ClaimRevoked(sender, proof));
+
+            Ok(())
+        }
+
+        #[weight = 0]
+        fn transfer_claim(origin, claim: Vec<u8>, dest: T::AccountId) -> dispatch::DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            ensure!(Proofs::<T>::contains_key(&claim), Error::<T>::ClaimNotExist);
+
+            let (owner, _) = Proofs::<T>::get(&claim);
+            ensure!(owner == sender, Error::<T>::NotClaimOwner);
+
+            Proofs::<T>::insert(&claim, (dest, frame_system::Module::<T>::block_number()));
 
             Ok(())
         }
