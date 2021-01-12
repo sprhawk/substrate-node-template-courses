@@ -83,6 +83,7 @@ decl_error! {
         KittiesCountOverflow,
         InvalidKittyId,
         RequireDifferentParent,
+        CantTransferSameAccount,
     }
 }
 
@@ -112,6 +113,7 @@ decl_module! {
         #[weight = 10_000]
         pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
+            ensure!(to != sender, Error::<T>::CantTransferSameAccount);
             <OwnedKitties<T>>::remove(sender.clone());
             <KittyOwners<T>>::insert(kitty_id, to.clone());
             <OwnedKitties<T>>::insert(to.clone(), kitty_id);
