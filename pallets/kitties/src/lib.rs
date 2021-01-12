@@ -62,9 +62,16 @@ decl_storage! {
         pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
         pub OwnedKitties get(fn owned_kitties): map hasher(blake2_128_concat) T::AccountId => KittyIndexOf<T>;
 
+        // Space Complexity: O(5N)
+        // find children: Time: O(1)
         pub KittyChildren get(fn kitty_children): map hasher(blake2_128_concat) KittyIndexOf<T> => Vec<KittyIndexOf<T>>;
+        // find partners: Time: O(1)
         pub KittyPartners get(fn kitty_partners): map hasher(blake2_128_concat) KittyIndexOf<T> => Vec<KittyIndexOf<T>>;
+        // find parents: Time: O(1)
         pub KittyParents  get(fn kitty_parents): map hasher(blake2_128_concat) KittyIndexOf<T> => [KittyIndexOf<T>;2];
+        // find brothers: Time: O(2N)
+
+        // If KittyIndex can be PartialOrd, then complexity can be optimized further ( save parents as an sorted [KittyIndex;2] )
     }
 }
 
