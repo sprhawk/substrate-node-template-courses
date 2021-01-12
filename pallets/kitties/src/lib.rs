@@ -60,6 +60,7 @@ decl_storage! {
         pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId,  hasher(blake2_128_concat) KittyIndexOf<T> => Option<Kitty>;
         pub LastKittyIndex get(fn last_kitty_idx): KittyIndexOf<T>;
         pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
+        pub OwnedKitties get(fn owned_kitties): map hasher(blake2_128_concat) T::AccountId => KittyIndexOf<T>;
     }
 }
 
@@ -111,7 +112,9 @@ decl_module! {
         #[weight = 10_000]
         pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
+            <OwnedKitties<T>>::remove(sender.clone());
             <KittyOwners<T>>::insert(kitty_id, to.clone());
+            <OwnedKitties<T>>::insert(to.clone(), kitty_id);
             Self::deposit_event(RawEvent::Transferred(sender, to, kitty_id));
             // Return a successful DispatchResult
             Ok(())
@@ -151,6 +154,7 @@ impl<T: Trait> Module<T> {
         <Kitties<T>>::insert(owner, kitty_id, kitty);
         <LastKittyIndex<T>>::put(kitty_id);
         <KittyOwners<T>>::insert(kitty_id, owner);
+        <OwnedKitties<T>>::insert(owner, kitty_id);
     }
 
     fn do_breed(
