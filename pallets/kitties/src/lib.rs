@@ -1,8 +1,4 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// https://substrate.dev/docs/en/knowledgebase/runtime/frame
 use codec::{Decode, Encode};
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
@@ -11,11 +7,10 @@ use frame_support::{
 };
 use frame_system::ensure_signed;
 use sp_io::hashing::blake2_128;
-use sp_runtime::{
-    traits::{AtLeast32BitUnsigned, Bounded},
-    DispatchError,
-};
-use std::fmt::Debug;
+use sp_runtime::DispatchError;
+/// Edit this file to define custom logic or remove it if it is not needed.
+/// Learn more about FRAME and the core library of Substrate FRAME pallets:
+/// https://substrate.dev/docs/en/knowledgebase/runtime/frame
 
 #[cfg(test)]
 mod mock;
@@ -29,12 +24,26 @@ pub type KittyIndexOf<T> = <T as Trait>::KittyIndex;
 #[derive(Encode, Decode)]
 pub struct Kitty(pub [u8; 16]);
 
+pub trait UniqueKittyIndex: Sized {
+    fn next_kitty_idx(&self) -> Option<Self>;
+}
+
+impl UniqueKittyIndex for u32 {
+    fn next_kitty_idx(&self) -> Option<Self> {
+        if self < &Self::MAX {
+            Some(self + 1)
+        } else {
+            None
+        }
+    }
+}
+
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
     type Randomness: Randomness<Self::Hash>;
-    type KittyIndex: Parameter + Bounded + AtLeast32BitUnsigned + Default + Copy + Debug;
+    type KittyIndex: Parameter + UniqueKittyIndex + Default + Copy;
 }
 
 // The pallet's runtime storage items.
@@ -45,7 +54,7 @@ decl_storage! {
     // ---------------------------------vvvvvvvvvvvvvv
     trait Store for Module<T: Trait> as Kitties {
         pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId,  hasher(blake2_128_concat) KittyIndexOf<T> => Option<Kitty>;
-        pub KittiesCount get(fn kitties_count): KittyIndexOf<T>;
+        pub LastKittyIndex get(fn last_kitty_idx): KittyIndexOf<T>;
         pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
     }
 }
@@ -121,26 +130,22 @@ fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
 
 impl<T: Trait> Module<T> {
     fn next_kitty_id() -> sp_std::result::Result<KittyIndexOf<T>, DispatchError> {
-        let kitty_id = Self::kitties_count();
-        if kitty_id == <T as Trait>::KittyIndex::max_value() {
-            return Err(Error::<T>::KittiesCountOverflow.into());
-        }
-        Ok(kitty_id)
+        let kitty_id = Self::last_kitty_idx().next_kitty_idx();
+
+        Ok(kitty_id.ok_or(Error::<T>::KittiesCountOverflow)?)
     }
 
     fn random_value(sender: &T::AccountId) -> [u8; 16] {
-        let payload = (
-            T::Randomness::random_seed(),
-            &sender,
-            <frame_system::Module<T>>::extrinsic_index(),
-        );
+        let context: &[u8] = b"kitties pallet context";
+        let r = T::Randomness::random(context);
+        let payload = (r, &sender, <frame_system::Module<T>>::extrinsic_index());
 
         payload.using_encoded(blake2_128)
     }
 
     fn insert_kitty(owner: &T::AccountId, kitty_id: KittyIndexOf<T>, kitty: Kitty) {
         <Kitties<T>>::insert(owner, kitty_id, kitty);
-        <KittiesCount<T>>::put(kitty_id + 1.into());
+        <LastKittyIndex<T>>::put(kitty_id);
         <KittyOwners<T>>::insert(kitty_id, owner);
     }
 
