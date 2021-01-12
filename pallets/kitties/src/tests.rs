@@ -67,6 +67,27 @@ fn breed_works() {
         let k2 = LastKittyIndex::<Test>::get();
 
         assert_ok!(KittiesModule::breed(origin.clone(), k1, k2));
+        let child = LastKittyIndex::<Test>::get();
+
+        // test parents, partners, children, etc
+        assert_eq!(KittyParents::<Test>::contains_key(child), true);
+        let parents = KittyParents::<Test>::get(child);
+        assert_eq!(parents.contains(&k1), true);
+        assert_eq!(parents.contains(&k2), true);
+
+        for parent in &parents {
+            assert_eq!(KittyChildren::<Test>::contains_key(parent), true);
+            let children = KittyChildren::<Test>::get(parent);
+            assert_eq!(children.contains(&child), true);
+        }
+
+        for idx in 0..2 {
+            let parent = parents[idx];
+            assert_eq!(KittyPartners::<Test>::contains_key(parent), true);
+            let partners = KittyPartners::<Test>::get(parent);
+            let partner = parents[1 - idx];
+            assert_eq!(partners.contains(&partner), true);
+        }
     });
 }
 

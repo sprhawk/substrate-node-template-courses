@@ -61,6 +61,10 @@ decl_storage! {
         pub LastKittyIndex get(fn last_kitty_idx): KittyIndexOf<T>;
         pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
         pub OwnedKitties get(fn owned_kitties): map hasher(blake2_128_concat) T::AccountId => KittyIndexOf<T>;
+
+        pub KittyChildren get(fn kitty_children): map hasher(blake2_128_concat) KittyIndexOf<T> => Vec<KittyIndexOf<T>>;
+        pub KittyPartners get(fn kitty_partners): map hasher(blake2_128_concat) KittyIndexOf<T> => Vec<KittyIndexOf<T>>;
+        pub KittyParents  get(fn kitty_parents): map hasher(blake2_128_concat) KittyIndexOf<T> => [KittyIndexOf<T>;2];
     }
 }
 
@@ -169,7 +173,7 @@ impl<T: Trait> Module<T> {
 
         ensure!(kitty_id_1 != kitty_id_2, Error::<T>::RequireDifferentParent);
 
-        let kitty_id = Self::next_kitty_id()?;
+        let child_kitty_id = Self::next_kitty_id()?;
 
         let kitty1_dna = kitty1.0;
         let kitty2_dna = kitty2.0;
@@ -180,7 +184,38 @@ impl<T: Trait> Module<T> {
             new_dna[i] = combine_dna(kitty1_dna[1], kitty2_dna[i], selector[i]);
         }
 
-        Self::insert_kitty(owner, kitty_id, Kitty(new_dna));
-        Ok(kitty_id)
+        Self::insert_kitty(owner, child_kitty_id, Kitty(new_dna));
+
+        // set child's parents
+        let parents = [kitty_id_1, kitty_id_2];
+        <KittyParents<T>>::insert(child_kitty_id, parents);
+        for idx in 0..2 {
+            // set parents' child
+            let parent = parents[idx];
+            if <KittyChildren<T>>::contains_key(parent) {
+                <KittyChildren<T>>::mutate(parent, |children| {
+                    children.push(child_kitty_id);
+                });
+            } else {
+                let children = vec![child_kitty_id];
+                <KittyChildren<T>>::insert(parent, children);
+            }
+
+            // set parents' partners
+            let partner = parents[1 - idx];
+            if <KittyPartners<T>>::contains_key(parent) {
+                <KittyPartners<T>>::mutate(parent, |partners| {
+                    if !partners.contains(&partner) {
+                        partners.push(partner);
+                    }
+                });
+            } else {
+                let partners = vec![partner];
+                <KittyPartners<T>>::insert(parent, partners);
+            }
+        }
+        // set partners
+
+        Ok(child_kitty_id)
     }
 }
