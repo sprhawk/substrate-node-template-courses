@@ -2,12 +2,15 @@
 use codec::{Decode, Encode};
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
-    traits::{Get, Randomness},
+    traits::{Currency, Get, Randomness, ReservableCurrency, WithdrawReasons},
     Parameter, StorageMap,
 };
 use frame_system::ensure_signed;
 use sp_io::hashing::blake2_128;
-use sp_runtime::DispatchError;
+use sp_runtime::{
+    traits::{AtLeast32BitUnsigned, Member},
+    DispatchError,
+};
 /// Edit this file to define custom logic or remove it if it is not needed.
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// https://substrate.dev/docs/en/knowledgebase/runtime/frame
@@ -22,7 +25,10 @@ mod tests;
 pub type KittyIndexOf<T> = <T as Trait>::KittyIndex;
 
 #[derive(Encode, Decode)]
-pub struct Kitty(pub [u8; 16]);
+pub struct Kitty<T: Trait> {
+    pub dna: [u8; 16],
+    pub amount: BalanceOf<T>,
+}
 
 // use a trait to make kitty index as any type
 // that implemented Uniquekittyindex trait
@@ -42,12 +48,20 @@ impl UniqueKittyIndex for u32 {
     }
 }
 
+pub type BalanceOf<T> =
+    <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+pub type NegativeImbalanceOf<T> =
+    <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
+
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
     type Randomness: Randomness<Self::Hash>;
     type KittyIndex: Parameter + UniqueKittyIndex + Default + Copy;
+    type Balance: Member + Parameter + AtLeast32BitUnsigned + Default + Copy;
+    type Currency: ReservableCurrency<Self::AccountId>;
+    type KittyDepositBase: Get<BalanceOf<Self>>;
 }
 
 // The pallet's runtime storage items.
@@ -57,7 +71,7 @@ decl_storage! {
     // This name may be updated, but each pallet in the runtime must use a unique name.
     // ---------------------------------vvvvvvvvvvvvvv
     trait Store for Module<T: Trait> as Kitties {
-        pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId,  hasher(blake2_128_concat) KittyIndexOf<T> => Option<Kitty>;
+        pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId,  hasher(blake2_128_concat) KittyIndexOf<T> => Kitty<T>;
         pub LastKittyIndex get(fn last_kitty_idx): KittyIndexOf<T>;
         pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
         pub OwnedKitties get(fn owned_kitties): map hasher(blake2_128_concat) T::AccountId => KittyIndexOf<T>;
@@ -82,9 +96,10 @@ decl_event!(
     where
         AccountId = <T as frame_system::Trait>::AccountId,
         KittyIndex = <T as Trait>::KittyIndex,
+        Balance = <T as Trait>::Balance,
     {
-        Created(AccountId, KittyIndex),
-        Transferred(AccountId, AccountId, KittyIndex),
+        Created(AccountId, KittyIndex, Balance),
+        Transferred(AccountId, AccountId, KittyIndex, Balance),
     }
 );
 
@@ -95,6 +110,7 @@ decl_error! {
         InvalidKittyId,
         RequireDifferentParent,
         // CantTransferSameAccount,
+        NoEnoughBalance,
    }
 }
 
@@ -111,24 +127,37 @@ decl_module! {
 
         #[weight = 10_000]
         pub fn create(origin) -> dispatch::DispatchResult {
+            let amount = <T as Trait>::KittyDepositBase::get();
             let sender = ensure_signed(origin)?;
             let kitty_id = Self::next_kitty_id()?;
             let dna = Self::random_value(&sender);
-            let kitty = Kitty(dna);
+            let kitty = Kitty{
+                dna,
+                amount
+            };
 
+            ensure!(<T as Trait>::Currency::can_reserve(&sender, amount), Error::<T>::NoEnoughBalance);
+            <T as Trait>::Currency::reserve(&sender, amount);
             Self::insert_kitty(&sender, kitty_id, kitty);
-            Self::deposit_event(RawEvent::Created(sender, kitty_id));
+            Self::deposit_event(RawEvent::Created(sender, kitty_id, amount));
             // Return a successful DispatchResult
             Ok(())
         }
         #[weight = 10_000]
         pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
+            ensure!(<Kitties<T>>::contains_key(sender, kitty_id), Error::<T>::InvalidKittyId);
             if to == sender { return Ok(()); }
+            let kitty = <Kitties<T>>::get(sender, kitty_id);
+
+            ensure!(<T as Trait>::Currency::can_reserve(&to, kitty.amount), Error::<T>::NoEnoughBalance);
+
             <OwnedKitties<T>>::remove(sender.clone());
             <KittyOwners<T>>::insert(kitty_id, to.clone());
             <OwnedKitties<T>>::insert(to.clone(), kitty_id);
-            Self::deposit_event(RawEvent::Transferred(sender, to, kitty_id));
+            <T as Trait>::Currency::reserve(&to, kitty.amount);
+            <T as Trait>::Currency::unreserve(&sender, kitty.amount);
+            Self::deposit_event(RawEvent::Transferred(sender, to, kitty_id, kitty.amount));
             // Return a successful DispatchResult
             Ok(())
         }
@@ -136,8 +165,9 @@ decl_module! {
         #[weight = 10_000]
         pub fn breed(origin, kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
-            let new_kitty_id = Self::do_breed(&sender, kitty_id_1, kitty_id_2)?;
-            Self::deposit_event(RawEvent::Created(sender, new_kitty_id));
+            let amount = <T as Trait>::KittyDepositBase::get();
+            let new_kitty_id = Self::do_breed(&sender, kitty_id_1, kitty_id_2, amount)?;
+            Self::deposit_event(RawEvent::Created(sender, new_kitty_id, amount));
             // Return a successful DispatchResult
             Ok(())
         }
@@ -163,7 +193,7 @@ impl<T: Trait> Module<T> {
         payload.using_encoded(blake2_128)
     }
 
-    fn insert_kitty(owner: &T::AccountId, kitty_id: KittyIndexOf<T>, kitty: Kitty) {
+    fn insert_kitty(owner: &T::AccountId, kitty_id: KittyIndexOf<T>, kitty: Kitty<T>) {
         <Kitties<T>>::insert(owner, kitty_id, kitty);
         <LastKittyIndex<T>>::put(kitty_id);
         <KittyOwners<T>>::insert(kitty_id, owner);
@@ -174,24 +204,34 @@ impl<T: Trait> Module<T> {
         owner: &T::AccountId,
         kitty_id_1: KittyIndexOf<T>,
         kitty_id_2: KittyIndexOf<T>,
+        amount: BalanceOf<T>,
     ) -> sp_std::result::Result<KittyIndexOf<T>, DispatchError> {
-        let kitty1 = Self::kitties(owner, kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
-        let kitty2 = Self::kitties(owner, kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
+        ensure!(
+            <Kitties<T>>::contains_key(owner, kitty_id_1),
+            Error::<T>::InvalidKittyId
+        );
+        ensure!(
+            <Kitties<T>>::contains_key(owner, kitty_id_2),
+            Error::<T>::InvalidKittyId
+        );
+
+        let kitty1 = Self::kitties(owner, kitty_id_1);
+        let kitty2 = Self::kitties(owner, kitty_id_2);
 
         ensure!(kitty_id_1 != kitty_id_2, Error::<T>::RequireDifferentParent);
 
         let child_kitty_id = Self::next_kitty_id()?;
 
-        let kitty1_dna = kitty1.0;
-        let kitty2_dna = kitty2.0;
+        let kitty1_dna = kitty1.dna;
+        let kitty2_dna = kitty2.dna;
         let selector = Self::random_value(&owner);
-        let mut new_dna = [0u8; 16];
+        let mut dna = [0u8; 16];
 
         for i in 0..kitty1_dna.len() {
-            new_dna[i] = combine_dna(kitty1_dna[1], kitty2_dna[i], selector[i]);
+            dna[i] = combine_dna(kitty1_dna[1], kitty2_dna[i], selector[i]);
         }
 
-        Self::insert_kitty(owner, child_kitty_id, Kitty(new_dna));
+        Self::insert_kitty(owner, child_kitty_id, Kitty { dna, amount });
 
         // set child's parents
         let parents = [kitty_id_1, kitty_id_2];

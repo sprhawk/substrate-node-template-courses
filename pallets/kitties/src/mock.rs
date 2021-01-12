@@ -61,8 +61,11 @@ impl Trait for Test {
     type Event = ();
     type Randomness = Randomness;
     type KittyIndex = u32;
+    type Balance = u64;
+    type Currency = Balances;
 }
 
+type Balances = pallet_balances::Module<Test>;
 pub type KittiesModule = Module<Test>;
 pub type System = frame_system::Module<Test>;
 
