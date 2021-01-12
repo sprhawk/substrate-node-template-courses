@@ -7,11 +7,15 @@ use codec::{Decode, Encode};
 use frame_support::{
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure,
     traits::{Get, Randomness},
-    StorageMap,
+    Parameter, StorageMap,
 };
 use frame_system::ensure_signed;
 use sp_io::hashing::blake2_128;
-use sp_runtime::DispatchError;
+use sp_runtime::{
+    traits::{AtLeast32BitUnsigned, Bounded},
+    DispatchError,
+};
+use std::fmt::Debug;
 
 #[cfg(test)]
 mod mock;
@@ -19,7 +23,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-type KittyIndex = u32;
+// type KittyIndex = u32;
+pub type KittyIndexOf<T> = <T as Trait>::KittyIndex;
+
 #[derive(Encode, Decode)]
 pub struct Kitty(pub [u8; 16]);
 
@@ -28,6 +34,7 @@ pub trait Trait: frame_system::Trait {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
     type Randomness: Randomness<Self::Hash>;
+    type KittyIndex: Parameter + Bounded + AtLeast32BitUnsigned + Default + Copy + Debug;
 }
 
 // The pallet's runtime storage items.
@@ -37,9 +44,9 @@ decl_storage! {
     // This name may be updated, but each pallet in the runtime must use a unique name.
     // ---------------------------------vvvvvvvvvvvvvv
     trait Store for Module<T: Trait> as Kitties {
-        pub Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIndex => Option<Kitty>;
-        pub KittiesCount get(fn kitties_count): KittyIndex;
-        pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndex => Option<T::AccountId>;
+        pub Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<Kitty>;
+        pub KittiesCount get(fn kitties_count): KittyIndexOf<T>;
+        pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
     }
 }
 
@@ -49,6 +56,7 @@ decl_event!(
     pub enum Event<T>
     where
         AccountId = <T as frame_system::Trait>::AccountId,
+        KittyIndex = <T as Trait>::KittyIndex,
     {
         Created(AccountId, KittyIndex),
         Transferred(AccountId, AccountId, KittyIndex),
@@ -88,7 +96,7 @@ decl_module! {
             Ok(())
         }
         #[weight = 10_000]
-        pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndex) -> dispatch::DispatchResult {
+        pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             <KittyOwners<T>>::insert(kitty_id, to.clone());
             Self::deposit_event(RawEvent::Transferred(sender, to, kitty_id));
@@ -97,7 +105,7 @@ decl_module! {
         }
 
         #[weight = 10_000]
-        pub fn breed(origin, kitty_id_1: KittyIndex, kitty_id_2: KittyIndex) -> dispatch::DispatchResult {
+        pub fn breed(origin, kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             let new_kitty_id = Self::do_breed(&sender, kitty_id_1, kitty_id_2)?;
             Self::deposit_event(RawEvent::Created(sender, new_kitty_id));
@@ -112,9 +120,9 @@ fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
 }
 
 impl<T: Trait> Module<T> {
-    fn next_kitty_id() -> sp_std::result::Result<KittyIndex, DispatchError> {
+    fn next_kitty_id() -> sp_std::result::Result<KittyIndexOf<T>, DispatchError> {
         let kitty_id = Self::kitties_count();
-        if kitty_id == KittyIndex::max_value() {
+        if kitty_id == <T as Trait>::KittyIndex::max_value() {
             return Err(Error::<T>::KittiesCountOverflow.into());
         }
         Ok(kitty_id)
@@ -130,17 +138,17 @@ impl<T: Trait> Module<T> {
         payload.using_encoded(blake2_128)
     }
 
-    fn insert_kitty(owner: &T::AccountId, kitty_id: KittyIndex, kitty: Kitty) {
-        Kitties::insert(kitty_id, kitty);
-        KittiesCount::put(kitty_id + 1);
+    fn insert_kitty(owner: &T::AccountId, kitty_id: KittyIndexOf<T>, kitty: Kitty) {
+        <Kitties<T>>::insert(kitty_id, kitty);
+        <KittiesCount<T>>::put(kitty_id + 1.into());
         <KittyOwners<T>>::insert(kitty_id, owner);
     }
 
     fn do_breed(
         owner: &T::AccountId,
-        kitty_id_1: KittyIndex,
-        kitty_id_2: KittyIndex,
-    ) -> sp_std::result::Result<KittyIndex, DispatchError> {
+        kitty_id_1: KittyIndexOf<T>,
+        kitty_id_2: KittyIndexOf<T>,
+    ) -> sp_std::result::Result<KittyIndexOf<T>, DispatchError> {
         let kitty1 = Self::kitties(kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
         let kitty2 = Self::kitties(kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
 

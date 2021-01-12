@@ -60,6 +60,7 @@ impl system::Trait for Test {
 impl Trait for Test {
     type Event = ();
     type Randomness = Randomness;
+    type KittyIndex = u32;
 }
 
 pub type KittiesModule = Module<Test>;
