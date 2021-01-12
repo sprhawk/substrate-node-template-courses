@@ -24,6 +24,10 @@ pub type KittyIndexOf<T> = <T as Trait>::KittyIndex;
 #[derive(Encode, Decode)]
 pub struct Kitty(pub [u8; 16]);
 
+// use a trait to make kitty index as any type
+// that implemented Uniquekittyindex trait
+// can be used, not restricted by AtLeast32BitUnsigned,
+// etc
 pub trait UniqueKittyIndex: Sized {
     fn next_kitty_idx(&self) -> Option<Self>;
 }
