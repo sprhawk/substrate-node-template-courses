@@ -94,8 +94,8 @@ decl_error! {
         KittiesCountOverflow,
         InvalidKittyId,
         RequireDifferentParent,
-        CantTransferSameAccount,
-    }
+        // CantTransferSameAccount,
+   }
 }
 
 // Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -124,7 +124,7 @@ decl_module! {
         #[weight = 10_000]
         pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
-            ensure!(to != sender, Error::<T>::CantTransferSameAccount);
+            if to == sender { return Ok(()); }
             <OwnedKitties<T>>::remove(sender.clone());
             <KittyOwners<T>>::insert(kitty_id, to.clone());
             <OwnedKitties<T>>::insert(to.clone(), kitty_id);

@@ -39,21 +39,21 @@ fn transfer_kitty_works() {
     });
 }
 
-#[test]
-fn cant_transfer_same_account() {
-    new_test_ext().execute_with(|| {
-        run_to_block(10);
-        let from = 1;
-        let to = 1;
-        let origin = Origin::signed(1);
-        assert_ok!(KittiesModule::create(origin.clone()));
-        let idx = OwnedKitties::<Test>::get(from);
-        assert_noop!(
-            KittiesModule::transfer(origin, to, idx),
-            Error::<Test>::CantTransferSameAccount
-        );
-    });
-}
+// #[test]
+// fn cant_transfer_same_account() {
+//     new_test_ext().execute_with(|| {
+//         run_to_block(10);
+//         let from = 1;
+//         let to = 1;
+//         let origin = Origin::signed(1);
+//         assert_ok!(KittiesModule::create(origin.clone()));
+//         let idx = OwnedKitties::<Test>::get(from);
+//         assert_noop!(
+//             KittiesModule::transfer(origin, to, idx),
+//             Error::<Test>::CantTransferSameAccount
+//         );
+//     });
+// }
 
 #[test]
 fn breed_works() {
