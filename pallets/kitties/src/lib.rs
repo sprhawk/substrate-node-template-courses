@@ -44,7 +44,7 @@ decl_storage! {
     // This name may be updated, but each pallet in the runtime must use a unique name.
     // ---------------------------------vvvvvvvvvvvvvv
     trait Store for Module<T: Trait> as Kitties {
-        pub Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<Kitty>;
+        pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId,  hasher(blake2_128_concat) KittyIndexOf<T> => Option<Kitty>;
         pub KittiesCount get(fn kitties_count): KittyIndexOf<T>;
         pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
     }
@@ -139,7 +139,7 @@ impl<T: Trait> Module<T> {
     }
 
     fn insert_kitty(owner: &T::AccountId, kitty_id: KittyIndexOf<T>, kitty: Kitty) {
-        <Kitties<T>>::insert(kitty_id, kitty);
+        <Kitties<T>>::insert(owner, kitty_id, kitty);
         <KittiesCount<T>>::put(kitty_id + 1.into());
         <KittyOwners<T>>::insert(kitty_id, owner);
     }
@@ -149,8 +149,8 @@ impl<T: Trait> Module<T> {
         kitty_id_1: KittyIndexOf<T>,
         kitty_id_2: KittyIndexOf<T>,
     ) -> sp_std::result::Result<KittyIndexOf<T>, DispatchError> {
-        let kitty1 = Self::kitties(kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
-        let kitty2 = Self::kitties(kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
+        let kitty1 = Self::kitties(owner, kitty_id_1).ok_or(Error::<T>::InvalidKittyId)?;
+        let kitty2 = Self::kitties(owner, kitty_id_2).ok_or(Error::<T>::InvalidKittyId)?;
 
         ensure!(kitty_id_1 != kitty_id_2, Error::<T>::RequireDifferentParent);
 
