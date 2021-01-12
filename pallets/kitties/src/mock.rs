@@ -17,7 +17,6 @@ impl_outer_origin! {
 }
 
 // Configure a mock runtime to test the pallet.
-use super::UniqueKittyIndex;
 
 type Randomness = pallet_randomness_collective_flip::Module<Test>;
 
