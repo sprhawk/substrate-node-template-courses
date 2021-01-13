@@ -71,7 +71,7 @@ decl_storage! {
     // This name may be updated, but each pallet in the runtime must use a unique name.
     // ---------------------------------vvvvvvvvvvvvvv
     trait Store for Module<T: Trait> as Kitties {
-        pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId,  hasher(blake2_128_concat) KittyIndexOf<T> => Kitty<T>;
+        pub Kitties get(fn kitties): double_map hasher(blake2_128_concat) T::AccountId,  hasher(blake2_128_concat) KittyIndexOf<T> => Option<Kitty<T>>;
         pub LastKittyIndex get(fn last_kitty_idx): KittyIndexOf<T>;
         pub KittyOwners get(fn kitty_owner): map hasher(blake2_128_concat) KittyIndexOf<T> => Option<T::AccountId>;
         pub OwnedKitties get(fn owned_kitties): map hasher(blake2_128_concat) T::AccountId => KittyIndexOf<T>;
@@ -96,7 +96,7 @@ decl_event!(
     where
         AccountId = <T as frame_system::Trait>::AccountId,
         KittyIndex = <T as Trait>::KittyIndex,
-        Balance = <T as Trait>::Balance,
+        Balance = BalanceOf<T>,
     {
         Created(AccountId, KittyIndex, Balance),
         Transferred(AccountId, AccountId, KittyIndex, Balance),
@@ -146,9 +146,9 @@ decl_module! {
         #[weight = 10_000]
         pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
-            ensure!(<Kitties<T>>::contains_key(sender, kitty_id), Error::<T>::InvalidKittyId);
+            ensure!(<Kitties<T>>::contains_key(&sender, kitty_id), Error::<T>::InvalidKittyId);
             if to == sender { return Ok(()); }
-            let kitty = <Kitties<T>>::get(sender, kitty_id);
+            let kitty = <Kitties<T>>::get(&sender, kitty_id).unwrap();
 
             ensure!(<T as Trait>::Currency::can_reserve(&to, kitty.amount), Error::<T>::NoEnoughBalance);
 
@@ -215,8 +215,8 @@ impl<T: Trait> Module<T> {
             Error::<T>::InvalidKittyId
         );
 
-        let kitty1 = Self::kitties(owner, kitty_id_1);
-        let kitty2 = Self::kitties(owner, kitty_id_2);
+        let kitty1 = Self::kitties(owner, kitty_id_1).unwrap();
+        let kitty2 = Self::kitties(owner, kitty_id_2).unwrap();
 
         ensure!(kitty_id_1 != kitty_id_2, Error::<T>::RequireDifferentParent);
 

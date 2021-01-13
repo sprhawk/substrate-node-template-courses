@@ -27,6 +27,7 @@ parameter_types! {
     pub const MaximumBlockWeight: Weight = 1024;
     pub const MaximumBlockLength: u32 = 2 * 1024;
     pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+    pub const KittyDepositBase: u32 = 10_000;
 }
 
 impl system::Trait for Test {
@@ -57,12 +58,34 @@ impl system::Trait for Test {
     type SystemWeightInfo = ();
 }
 
+impl_outer_event! {
+    pub enum Event for Test {
+        frame_system<T>,
+        pallet_balances<T>,
+        pallet_assets<T>,
+    }
+}
+
 impl Trait for Test {
     type Event = ();
     type Randomness = Randomness;
     type KittyIndex = u32;
     type Balance = u64;
     type Currency = Balances;
+    type KittyDepositBase = KittyDepositBase;
+}
+
+parameter_types! {
+    pub const ExistentialDeposit: u64 = 1;
+}
+impl pallet_balances::Trait for Test {
+    type MaxLocks = ();
+    type Balance = u64;
+    type DustRemoval = ();
+    type Event = Event;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
 }
 
 type Balances = pallet_balances::Module<Test>;
