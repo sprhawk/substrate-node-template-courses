@@ -136,9 +136,7 @@ decl_module! {
                 amount
             };
 
-            ensure!(<T as Trait>::Currency::can_reserve(&sender, amount), Error::<T>::NoEnoughBalance);
-            <T as Trait>::Currency::reserve(&sender, amount);
-            Self::insert_kitty(&sender, kitty_id, kitty);
+            Self::insert_kitty(&sender, kitty_id, kitty)?;
             Self::deposit_event(RawEvent::Created(sender, kitty_id, amount));
             // Return a successful DispatchResult
             Ok(())
@@ -193,11 +191,23 @@ impl<T: Trait> Module<T> {
         payload.using_encoded(blake2_128)
     }
 
-    fn insert_kitty(owner: &T::AccountId, kitty_id: KittyIndexOf<T>, kitty: Kitty<T>) {
+    fn insert_kitty(
+        owner: &T::AccountId,
+        kitty_id: KittyIndexOf<T>,
+        kitty: Kitty<T>,
+    ) -> dispatch::DispatchResult {
+        ensure!(
+            <T as Trait>::Currency::can_reserve(&owner, kitty.amount),
+            Error::<T>::NoEnoughBalance
+        );
+        <T as Trait>::Currency::reserve(&owner, kitty.amount)?;
+
         <Kitties<T>>::insert(owner, kitty_id, kitty);
         <LastKittyIndex<T>>::put(kitty_id);
         <KittyOwners<T>>::insert(kitty_id, owner);
         <OwnedKitties<T>>::insert(owner, kitty_id);
+
+        Ok(())
     }
 
     fn do_breed(
@@ -231,7 +241,7 @@ impl<T: Trait> Module<T> {
             dna[i] = combine_dna(kitty1_dna[1], kitty2_dna[i], selector[i]);
         }
 
-        Self::insert_kitty(owner, child_kitty_id, Kitty { dna, amount });
+        Self::insert_kitty(owner, child_kitty_id, Kitty { dna, amount })?;
 
         // set child's parents
         let parents = [kitty_id_1, kitty_id_2];
