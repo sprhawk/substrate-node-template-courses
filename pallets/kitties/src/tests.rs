@@ -22,6 +22,19 @@ fn owned_kitties_can_append_values() {
 }
 
 #[test]
+fn owned_kitties_cant_append_values_with_not_enough_balances() {
+    new_test_ext().execute_with(|| {
+        run_to_block(10);
+        let owner = Origin::signed(1);
+        Balances::make_free_balance_be(&1, 9);
+        assert_noop!(
+            KittiesModule::create(owner,),
+            Error::<Test>::NoEnoughBalance
+        );
+    });
+}
+
+#[test]
 fn transfer_kitty_works() {
     new_test_ext().execute_with(|| {
         run_to_block(10);
@@ -40,6 +53,24 @@ fn transfer_kitty_works() {
         let kitty_owner = KittyOwners::<Test>::get(idx);
         assert!(kitty_owner.is_some());
         assert_eq!(to, kitty_owner.unwrap());
+    });
+}
+
+#[test]
+fn transfer_kitty_failed_with_to_has_no_enough_balances() {
+    new_test_ext().execute_with(|| {
+        run_to_block(10);
+        let from = 1;
+        let to = 2;
+        let origin = Origin::signed(1);
+        Balances::make_free_balance_be(&from, 100_000);
+        Balances::make_free_balance_be(&to, 9);
+        assert_ok!(KittiesModule::create(origin.clone()));
+        let idx = OwnedKitties::<Test>::get(from);
+        assert_noop!(
+            KittiesModule::transfer(origin, to, idx),
+            Error::<Test>::NoEnoughBalance
+        );
     });
 }
 
@@ -109,6 +140,24 @@ fn cant_breed_with_same_kitty() {
         assert_noop!(
             KittiesModule::breed(origin.clone(), k1, k1),
             Error::<Test>::RequireDifferentParent,
+        );
+    });
+}
+
+fn breed_failed_due_to_no_enough_balances() {
+    new_test_ext().execute_with(|| {
+        run_to_block(10);
+        let account = 1;
+        let origin = Origin::signed(account);
+        Balances::make_free_balance_be(&account, 10 * 2 + 1);
+        assert_ok!(KittiesModule::create(origin.clone()));
+        let k1 = LastKittyIndex::<Test>::get();
+        assert_ok!(KittiesModule::create(origin.clone()));
+        let k2 = LastKittyIndex::<Test>::get();
+
+        assert_noop!(
+            KittiesModule::breed(origin.clone(), k1, k2),
+            Error::<Test>::NoEnoughBalance
         );
     });
 }
