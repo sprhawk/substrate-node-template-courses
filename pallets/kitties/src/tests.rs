@@ -2,12 +2,14 @@ use crate::{mock::*, Error};
 use frame_support::{assert_noop, assert_ok};
 
 use super::*;
+type Balances = pallet_balances::Module<Test>;
 
 #[test]
 fn owned_kitties_can_append_values() {
     new_test_ext().execute_with(|| {
         run_to_block(10);
         let owner = Origin::signed(1);
+        Balances::make_free_balance_be(&1, 100_000);
         assert_ok!(KittiesModule::create(owner,));
         assert_eq!(OwnedKitties::<Test>::contains_key(1), true);
         let idx = OwnedKitties::<Test>::get(1);
@@ -26,6 +28,8 @@ fn transfer_kitty_works() {
         let from = 1;
         let to = 2;
         let origin = Origin::signed(1);
+        Balances::make_free_balance_be(&from, 100_000);
+        Balances::make_free_balance_be(&to, 100_000);
         assert_ok!(KittiesModule::create(origin.clone()));
         let idx = OwnedKitties::<Test>::get(from);
         assert_ok!(KittiesModule::transfer(origin, to, idx));
@@ -61,6 +65,7 @@ fn breed_works() {
         run_to_block(10);
         let account = 1;
         let origin = Origin::signed(account);
+        Balances::make_free_balance_be(&account, 100_000);
         assert_ok!(KittiesModule::create(origin.clone()));
         let k1 = LastKittyIndex::<Test>::get();
         assert_ok!(KittiesModule::create(origin.clone()));
@@ -97,6 +102,7 @@ fn cant_breed_with_same_kitty() {
         run_to_block(10);
         let account = 1;
         let origin = Origin::signed(account);
+        Balances::make_free_balance_be(&account, 100_000);
         assert_ok!(KittiesModule::create(origin.clone()));
         let k1 = LastKittyIndex::<Test>::get();
 

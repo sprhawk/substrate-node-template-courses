@@ -1,6 +1,6 @@
 use crate::{Module, Trait};
 use frame_support::{
-    impl_outer_origin, parameter_types,
+    impl_outer_event, impl_outer_origin, parameter_types,
     traits::{OnFinalize, OnInitialize},
     weights::Weight,
 };
@@ -27,7 +27,7 @@ parameter_types! {
     pub const MaximumBlockWeight: Weight = 1024;
     pub const MaximumBlockLength: u32 = 2 * 1024;
     pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
-    pub const KittyDepositBase: u32 = 10_000;
+    pub const KittyDepositBase: u32 = 10;
 }
 
 impl system::Trait for Test {
@@ -41,7 +41,7 @@ impl system::Trait for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type Event = ();
+    type Event = Event;
     type BlockHashCount = BlockHashCount;
     type MaximumBlockWeight = MaximumBlockWeight;
     type DbWeight = ();
@@ -52,10 +52,14 @@ impl system::Trait for Test {
     type AvailableBlockRatio = AvailableBlockRatio;
     type Version = ();
     type PalletInfo = ();
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<u64>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
+}
+
+mod pallet_assets {
+    pub use crate::Event;
 }
 
 impl_outer_event! {
@@ -67,7 +71,7 @@ impl_outer_event! {
 }
 
 impl Trait for Test {
-    type Event = ();
+    type Event = Event;
     type Randomness = Randomness;
     type KittyIndex = u32;
     type Balance = u64;
