@@ -82,6 +82,7 @@ std = [
     'pallet-sudo/std',
     'pallet-template/std',
     'pallet-timestamp/std',
+    'pallet-kitties/std',
     'pallet-transaction-payment/std',
     'pallet-transaction-payment-rpc-runtime-api/std',
     'sp-api/std',
