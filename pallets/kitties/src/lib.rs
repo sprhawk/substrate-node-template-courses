@@ -23,6 +23,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+mod benchmarking;
+
 // type KittyIndex = u32;
 pub type KittyIndexOf<T> = <T as Trait>::KittyIndex;
 
