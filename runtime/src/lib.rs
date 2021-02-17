@@ -272,6 +272,7 @@ impl pallet_template::Trait for Runtime {
 
 parameter_types! {
     pub const MaximumClaimLength: usize = 256;
+    pub const DefaultKittyDepositBase: u128 = 10_000;
 }
 
 impl pallet_poe::Trait for Runtime {
@@ -279,7 +280,7 @@ impl pallet_poe::Trait for Runtime {
     type MaximumClaimLength = MaximumClaimLength;
 }
 
-pub type Balances = pallet_balances::Module<Test>;
+// pub type Balances = pallet_balances::Module<>;
 
 impl pallet_kitties::Trait for Runtime {
     type Event = Event;
@@ -287,6 +288,7 @@ impl pallet_kitties::Trait for Runtime {
     type KittyIndex = u32;
     type Balance = u64;
     type Currency = Balances;
+    type KittyDepositBase = DefaultKittyDepositBase;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
