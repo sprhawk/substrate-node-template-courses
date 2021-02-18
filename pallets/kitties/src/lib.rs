@@ -129,7 +129,7 @@ decl_module! {
         // Events must be initialized if they are used by the pallet.
         fn deposit_event() = default;
 
-        #[weight = 10_000]
+        #[weight = T::DbWeight::get().writes(4) + 80_880_000]
         pub fn create(origin) -> dispatch::DispatchResult {
             let amount = <T as Trait>::KittyDepositBase::get();
             let sender = ensure_signed(origin)?;
@@ -145,7 +145,7 @@ decl_module! {
             // Return a successful DispatchResult
             Ok(())
         }
-        #[weight = 10_000]
+        #[weight = T::DbWeight::get().writes(3) + T::DbWeight::get().reads(1) + 80_880_000]
         pub fn transfer(origin, to: T::AccountId, kitty_id: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             ensure!(<Kitties<T>>::contains_key(&sender, kitty_id), Error::<T>::InvalidKittyId);
@@ -164,7 +164,7 @@ decl_module! {
             Ok(())
         }
 
-        #[weight = 10_000]
+        #[weight = T::DbWeight::get().writes(7) + T::DbWeight::get().reads(2) + 162_380_000]
         pub fn breed(origin, kitty_id_1: KittyIndexOf<T>, kitty_id_2: KittyIndexOf<T>) -> dispatch::DispatchResult {
             let sender = ensure_signed(origin)?;
             let amount = <T as Trait>::KittyDepositBase::get();
